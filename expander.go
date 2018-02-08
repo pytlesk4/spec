@@ -825,6 +825,18 @@ func expandOperation(op *Operation, resolver *schemaLoader, basePath string) err
 	return nil
 }
 
+// ExpandResponse expands any $ref within a Response
+func ExpandResponse(response *Response, basePath string) error {
+	opts := &ExpandOptions{
+		RelativeBase: basePath,
+	}
+	resolver, err := defaultSchemaLoader(nil, opts, nil)
+	if err != nil {
+		return err
+	}
+	return expandResponse(response, resolver, basePath)
+}
+
 func expandResponse(response *Response, resolver *schemaLoader, basePath string) error {
 	if response == nil {
 		return nil
@@ -856,6 +868,18 @@ func expandResponse(response *Response, resolver *schemaLoader, basePath string)
 		*response.Schema = *s
 	}
 	return nil
+}
+
+// ExpandParameter expands any $ref within a parameter
+func ExpandParameter(parameter *Parameter, basePath string) error {
+	opts := &ExpandOptions{
+		RelativeBase: basePath,
+	}
+	resolver, err := defaultSchemaLoader(nil, opts, nil)
+	if err != nil {
+		return err
+	}
+	return expandParameter(parameter, resolver, basePath)
 }
 
 func expandParameter(parameter *Parameter, resolver *schemaLoader, basePath string) error {
