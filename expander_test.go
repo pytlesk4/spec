@@ -19,6 +19,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"runtime"
 	"testing"
 
@@ -26,6 +27,8 @@ import (
 	"github.com/go-openapi/swag"
 	"github.com/stretchr/testify/assert"
 )
+
+var fixturesPath = filepath.Join("fixtures", "specs")
 
 func jsonDoc(path string) (json.RawMessage, error) {
 	data, err := swag.LoadFromFileOrHTTP(path)
@@ -196,7 +199,9 @@ func TestResolveRef(t *testing.T) {
 	sch, err := ResolveRef(root, &ref)
 	assert.NoError(t, err)
 	b, _ := sch.MarshalJSON()
-	assert.JSONEq(t, `{"id":"Category","properties":{"id":{"type":"integer","format":"int64"},"name":{"type":"string"}}}`, string(b))
+	assert.JSONEq(t,
+		`{"id":"Category","properties":{"id":{"type":"integer","format":"int64"},"name":{"type":"string"}}}`,
+		string(b))
 }
 
 func TestResponseExpansion(t *testing.T) {
@@ -798,27 +803,27 @@ func resolutionContextServer() *httptest.Server {
 		// fmt.Println("got a request for", req.URL.String())
 		if req.URL.Path == "/resolution.json" {
 
-			b, _ := ioutil.ReadFile("fixtures/specs/resolution.json")
+			b, _ := ioutil.ReadFile(filepath.Join(fixturesPath, "resolution.json"))
 			var ctnt map[string]interface{}
-			json.Unmarshal(b, &ctnt)
+			_ = json.Unmarshal(b, &ctnt)
 			ctnt["id"] = servedAt
 
 			rw.Header().Set("Content-Type", "application/json")
 			rw.WriteHeader(200)
 			bb, _ := json.Marshal(ctnt)
-			rw.Write(bb)
+			_, _ = rw.Write(bb)
 			return
 		}
 		if req.URL.Path == "/resolution2.json" {
-			b, _ := ioutil.ReadFile("fixtures/specs/resolution2.json")
+			b, _ := ioutil.ReadFile(filepath.Join(fixturesPath, "resolution2.json"))
 			var ctnt map[string]interface{}
-			json.Unmarshal(b, &ctnt)
+			_ = json.Unmarshal(b, &ctnt)
 			ctnt["id"] = servedAt
 
 			rw.Header().Set("Content-Type", "application/json")
 			rw.WriteHeader(200)
 			bb, _ := json.Marshal(ctnt)
-			rw.Write(bb)
+			_, _ = rw.Write(bb)
 			return
 		}
 
@@ -838,7 +843,7 @@ func resolutionContextServer() *httptest.Server {
 			b, _ := json.Marshal(map[string]interface{}{
 				"type": "string",
 			})
-			rw.Write(b)
+			_, _ = rw.Write(b)
 			return
 		}
 
@@ -851,7 +856,7 @@ func resolutionContextServer() *httptest.Server {
 					"type": "file",
 				},
 			})
-			rw.Write(b)
+			_, _ = rw.Write(b)
 			return
 		}
 
@@ -862,15 +867,14 @@ func resolutionContextServer() *httptest.Server {
 }
 
 func TestResolveRemoteRef_RootSame(t *testing.T) {
-	specs := "fixtures/specs/"
-	fileserver := http.FileServer(http.Dir(specs))
+	fileserver := http.FileServer(http.Dir(fixturesPath))
 	server := httptest.NewServer(fileserver)
 	defer server.Close()
 
 	rootDoc := new(Swagger)
-	b, err := ioutil.ReadFile("fixtures/specs/refed.json")
+	b, err := ioutil.ReadFile(filepath.Join(fixturesPath, "refed.json"))
 	// the filename doesn't matter because ref will eventually point to refed.json
-	specBase, _ := absPath("fixtures/specs/anyotherfile.json")
+	specBase, _ := absPath(filepath.Join(fixturesPath, "anyotherfile.json"))
 	if assert.NoError(t, err) && assert.NoError(t, json.Unmarshal(b, rootDoc)) {
 		var result0 Swagger
 		ref0, _ := NewRef(server.URL + "/refed.json#")
@@ -891,13 +895,12 @@ func TestResolveRemoteRef_RootSame(t *testing.T) {
 }
 
 func TestResolveRemoteRef_FromFragment(t *testing.T) {
-	specs := "fixtures/specs"
-	fileserver := http.FileServer(http.Dir(specs))
+	fileserver := http.FileServer(http.Dir(fixturesPath))
 	server := httptest.NewServer(fileserver)
 	defer server.Close()
 
 	rootDoc := new(Swagger)
-	b, err := ioutil.ReadFile("fixtures/specs/refed.json")
+	b, err := ioutil.ReadFile(filepath.Join(fixturesPath, "refed.json"))
 
 	if assert.NoError(t, err) && assert.NoError(t, json.Unmarshal(b, rootDoc)) {
 		var tgt Schema
@@ -912,13 +915,12 @@ func TestResolveRemoteRef_FromFragment(t *testing.T) {
 }
 
 func TestResolveRemoteRef_FromInvalidFragment(t *testing.T) {
-	specs := "fixtures/specs"
-	fileserver := http.FileServer(http.Dir(specs))
+	fileserver := http.FileServer(http.Dir(fixturesPath))
 	server := httptest.NewServer(fileserver)
 	defer server.Close()
 
 	rootDoc := new(Swagger)
-	b, err := ioutil.ReadFile("fixtures/specs/refed.json")
+	b, err := ioutil.ReadFile(filepath.Join(fixturesPath, "refed.json"))
 	if assert.NoError(t, err) && assert.NoError(t, json.Unmarshal(b, rootDoc)) {
 		var tgt Schema
 		ref, err := NewRef(server.URL + "/refed.json#/definitions/NotThere")
@@ -937,7 +939,7 @@ func TestResolveRemoteRef_WithResolutionContext(t *testing.T) {
 	ref, err := NewRef(server.URL + "/resolution.json#/definitions/bool")
 	if assert.NoError(t, err) {
 		tgt.Ref = ref
-		ExpandSchema(&tgt, nil, nil)
+		_ = ExpandSchema(&tgt, nil, nil)
 		assert.Equal(t, StringOrArray([]string{"boolean"}), tgt.Type)
 	}
 
@@ -951,12 +953,13 @@ func TestResolveRemoteRef_WithNestedResolutionContext(t *testing.T) {
 	ref, err := NewRef(server.URL + "/resolution.json#/items")
 	if assert.NoError(t, err) {
 		tgt.Ref = ref
-		ExpandSchema(&tgt, nil, nil)
+		_ = ExpandSchema(&tgt, nil, nil)
 		assert.Equal(t, StringOrArray([]string{"string"}), tgt.Items.Schema.Type)
 	}
 }
 
-/* This next test will have to wait until we do full $ID analysis for every subschema on every file that is referenced */
+/* This next test will have to wait until we do full $ID analysis for every subschema
+// on every file that is referenced */
 /* For now, TestResolveRemoteRef_WithNestedResolutionContext replaces this next test */
 // func TestResolveRemoteRef_WithNestedResolutionContext_WithParentID(t *testing.T) {
 // 	server := resolutionContextServer()
@@ -979,20 +982,21 @@ func TestResolveRemoteRef_WithNestedResolutionContextWithFragment(t *testing.T) 
 	ref, err := NewRef(server.URL + "/resolution2.json#/items")
 	if assert.NoError(t, err) {
 		tgt.Ref = ref
-		ExpandSchema(&tgt, nil, nil)
+		_ = ExpandSchema(&tgt, nil, nil)
 		assert.Equal(t, StringOrArray([]string{"file"}), tgt.Items.Schema.Type)
 	}
 
 }
 
-/* This next test will have to wait until we do full $ID analysis for every subschema on every file that is referenced */
+/* This next test will have to wait until we do full $ID analysis for every subschema on every
+// file that is referenced */
 /* For now, TestResolveRemoteRef_WithNestedResolutionContext replaces this next test */
 // func TestResolveRemoteRef_WithNestedResolutionContextWithFragment_WithParentID(t *testing.T) {
 // 	server := resolutionContextServer()
 // 	defer server.Close()
 
 // 	rootDoc := new(Swagger)
-// 	b, err := ioutil.ReadFile("fixtures/specs/refed.json")
+// 	b, err := ioutil.ReadFile(filepath.Join(fixturesPath,"refed.json"))
 // 	if assert.NoError(t, err) && assert.NoError(t, json.Unmarshal(b, rootDoc)) {
 // 		var tgt Schema
 // 		ref, err := NewRef(server.URL + "/resolution2.json#/items/items")
@@ -1006,13 +1010,12 @@ func TestResolveRemoteRef_WithNestedResolutionContextWithFragment(t *testing.T) 
 // }
 
 func TestResolveRemoteRef_ToParameter(t *testing.T) {
-	specs := "fixtures/specs"
-	fileserver := http.FileServer(http.Dir(specs))
+	fileserver := http.FileServer(http.Dir(fixturesPath))
 	server := httptest.NewServer(fileserver)
 	defer server.Close()
 
 	rootDoc := new(Swagger)
-	b, err := ioutil.ReadFile("fixtures/specs/refed.json")
+	b, err := ioutil.ReadFile(filepath.Join(fixturesPath, "refed.json"))
 	if assert.NoError(t, err) && assert.NoError(t, json.Unmarshal(b, rootDoc)) {
 		var tgt Parameter
 		ref, err := NewRef(server.URL + "/refed.json#/parameters/idParam")
@@ -1038,7 +1041,7 @@ func TestResolveRemoteRef_ToPathItem(t *testing.T) {
 	defer server.Close()
 
 	rootDoc := new(Swagger)
-	b, err := ioutil.ReadFile("fixtures/specs/refed.json")
+	b, err := ioutil.ReadFile(filepath.Join(fixturesPath, "refed.json"))
 	if assert.NoError(t, err) && assert.NoError(t, json.Unmarshal(b, rootDoc)) {
 		var tgt PathItem
 		ref, err := NewRef(server.URL + "/refed.json#/paths/" + jsonpointer.Escape("/pets/{id}"))
@@ -1053,13 +1056,12 @@ func TestResolveRemoteRef_ToPathItem(t *testing.T) {
 }
 
 func TestResolveRemoteRef_ToResponse(t *testing.T) {
-	specs := "fixtures/specs"
-	fileserver := http.FileServer(http.Dir(specs))
+	fileserver := http.FileServer(http.Dir(fixturesPath))
 	server := httptest.NewServer(fileserver)
 	defer server.Close()
 
 	rootDoc := new(Swagger)
-	b, err := ioutil.ReadFile("fixtures/specs/refed.json")
+	b, err := ioutil.ReadFile(filepath.Join(fixturesPath, "refed.json"))
 	if assert.NoError(t, err) && assert.NoError(t, json.Unmarshal(b, rootDoc)) {
 		var tgt Response
 		ref, err := NewRef(server.URL + "/refed.json#/responses/petResponse")
@@ -1075,7 +1077,7 @@ func TestResolveRemoteRef_ToResponse(t *testing.T) {
 
 func TestResolveLocalRef_SameRoot(t *testing.T) {
 	rootDoc := new(Swagger)
-	json.Unmarshal(PetStoreJSONMessage, rootDoc)
+	_ = json.Unmarshal(PetStoreJSONMessage, rootDoc)
 
 	result := new(Swagger)
 	ref, _ := NewRef("#")
@@ -1088,7 +1090,7 @@ func TestResolveLocalRef_SameRoot(t *testing.T) {
 
 func TestResolveLocalRef_FromFragment(t *testing.T) {
 	rootDoc := new(Swagger)
-	json.Unmarshal(PetStoreJSONMessage, rootDoc)
+	_ = json.Unmarshal(PetStoreJSONMessage, rootDoc)
 
 	var tgt Schema
 	ref, err := NewRef("#/definitions/Category")
@@ -1103,7 +1105,7 @@ func TestResolveLocalRef_FromFragment(t *testing.T) {
 
 func TestResolveLocalRef_FromInvalidFragment(t *testing.T) {
 	rootDoc := new(Swagger)
-	json.Unmarshal(PetStoreJSONMessage, rootDoc)
+	_ = json.Unmarshal(PetStoreJSONMessage, rootDoc)
 
 	var tgt Schema
 	ref, err := NewRef("#/definitions/NotThere")
@@ -1116,8 +1118,8 @@ func TestResolveLocalRef_FromInvalidFragment(t *testing.T) {
 
 func TestResolveLocalRef_Parameter(t *testing.T) {
 	rootDoc := new(Swagger)
-	b, err := ioutil.ReadFile("fixtures/specs/refed.json")
-	basePath, _ := absPath("fixtures/specs/refed.json")
+	b, err := ioutil.ReadFile(filepath.Join(fixturesPath, "refed.json"))
+	basePath, _ := absPath(filepath.Join(fixturesPath, "refed.json"))
 	if assert.NoError(t, err) && assert.NoError(t, json.Unmarshal(b, rootDoc)) {
 		var tgt Parameter
 		ref, err := NewRef("#/parameters/idParam")
@@ -1137,8 +1139,8 @@ func TestResolveLocalRef_Parameter(t *testing.T) {
 
 func TestResolveLocalRef_PathItem(t *testing.T) {
 	rootDoc := new(Swagger)
-	b, err := ioutil.ReadFile("fixtures/specs/refed.json")
-	basePath, _ := absPath("fixtures/specs/refed.json")
+	b, err := ioutil.ReadFile(filepath.Join(fixturesPath, "refed.json"))
+	basePath, _ := absPath(filepath.Join(fixturesPath, "refed.json"))
 	if assert.NoError(t, err) && assert.NoError(t, json.Unmarshal(b, rootDoc)) {
 		var tgt PathItem
 		ref, err := NewRef("#/paths/" + jsonpointer.Escape("/pets/{id}"))
@@ -1153,8 +1155,8 @@ func TestResolveLocalRef_PathItem(t *testing.T) {
 
 func TestResolveLocalRef_Response(t *testing.T) {
 	rootDoc := new(Swagger)
-	b, err := ioutil.ReadFile("fixtures/specs/refed.json")
-	basePath, _ := absPath("fixtures/specs/refed.json")
+	b, err := ioutil.ReadFile(filepath.Join(fixturesPath, "refed.json"))
+	basePath, _ := absPath(filepath.Join(fixturesPath, "refed.json"))
 	if assert.NoError(t, err) && assert.NoError(t, json.Unmarshal(b, rootDoc)) {
 		var tgt Response
 		ref, err := NewRef("#/responses/petResponse")
@@ -1169,10 +1171,10 @@ func TestResolveLocalRef_Response(t *testing.T) {
 
 func TestResolveForTransitiveRefs(t *testing.T) {
 	var spec *Swagger
-	rawSpec, err := ioutil.ReadFile("fixtures/specs/todos.json")
+	rawSpec, err := ioutil.ReadFile(filepath.Join(fixturesPath, "todos.json"))
 	assert.NoError(t, err)
 
-	basePath, err := absPath("fixtures/specs/todos.json")
+	basePath, err := absPath(filepath.Join(fixturesPath, "todos.json"))
 	assert.NoError(t, err)
 
 	opts := &ExpandOptions{

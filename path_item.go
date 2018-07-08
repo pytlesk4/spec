@@ -50,7 +50,7 @@ func (p PathItem) JSONLookup(token string) (interface{}, error) {
 	if ex, ok := p.Extensions[token]; ok {
 		return &ex, nil
 	}
-	if token == "$ref" {
+	if token == jsonRef {
 		return &p.Ref, nil
 	}
 	r, _, err := jsonpointer.GetForToken(p.PathItemProps, token)
